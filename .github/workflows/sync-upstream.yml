@@ -1,0 +1,49 @@
+name: Sync Upstream
+
+# 作用：自动把上游 cmliu/edgetunnel 的最新代码同步到你的 fork
+# 重要提醒：
+#   1) fork 仓库的 scheduled（定时）workflow 在 GitHub 上【默认禁用】。
+#      push 本文件后，请到 仓库 Settings → Actions → 左侧选 "Sync Upstream" → Enable，
+#      之后才会按 cron 自动运行。
+#   2) 手动触发（默认可用，用来验证）：Actions 页面 → Sync Upstream → Run workflow。
+#   3) 本 workflow 只同步、不改动任何代码。若你在 fork 的 main 上有自己的提交，
+#      上游更新与之冲突时会失败，需手动解决（本方案假定你不改 main）。
+
+on:
+  schedule:
+    # 每 6 小时同步一次（UTC 时间，可按需调整）
+    - cron: '0 */6 * * *'
+  # 允许在 Actions 页面手动触发，方便测试
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
+
+      - name: Configure Git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Add upstream remote
+        run: |
+          # 幂等：remote 已存在则更新 URL，避免重复 add 报错导致步骤失败
+          git remote add upstream https://github.com/cmliu/edgetunnel.git || git remote set-url upstream https://github.com/cmliu/edgetunnel.git
+
+      - name: Fetch upstream
+        run: git fetch upstream
+
+      - name: Merge upstream/main and push
+        run: |
+          git checkout main
+          git merge upstream/main --no-edit
+          git push origin main
